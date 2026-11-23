@@ -208,6 +208,69 @@ Make an educated guess for the current season.`,
   }
 });
 
+// Helper function to fetch real Wikipedia photos for a place
+const fetchWikipediaImage = async (wikiTitle, searchTerms = [], fallbackVibe = 'Nature') => {
+  const candidates = [wikiTitle, ...searchTerms].filter(Boolean);
+
+  for (const query of candidates) {
+    try {
+      // 1. Direct Wikipedia page summary (accurate and fast)
+      const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
+      const summaryRes = await fetch(summaryUrl, {
+        headers: { 'User-Agent': 'TripSketch/1.0 (Travel discovery app; student project)' },
+      });
+
+      if (summaryRes.ok) {
+        const data = await summaryRes.json();
+        if (data.thumbnail?.source) {
+          // Request high-resolution image instead of tiny thumbnail
+          return data.thumbnail.source.replace(/\/\d+px-/, '/800px-');
+        }
+        if (data.originalimage?.source) {
+          return data.originalimage.source;
+        }
+      }
+
+      // 2. Wikipedia search API to locate matching article
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=2`;
+      const searchRes = await fetch(searchUrl, {
+        headers: { 'User-Agent': 'TripSketch/1.0 (Travel discovery app; student project)' },
+      });
+
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const bestTitle = searchData.query?.search?.[0]?.title;
+        if (bestTitle && bestTitle !== query) {
+          const matchedSummary = await fetch(
+            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`,
+            { headers: { 'User-Agent': 'TripSketch/1.0 (Travel discovery app; student project)' } }
+          );
+          if (matchedSummary.ok) {
+            const mData = await matchedSummary.json();
+            if (mData.thumbnail?.source) {
+              return mData.thumbnail.source.replace(/\/\d+px-/, '/800px-');
+            }
+            if (mData.originalimage?.source) {
+              return mData.originalimage.source;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Continue to next candidate term
+    }
+  }
+
+  // Beautiful scenic vibe-based fallbacks if Wikipedia doesn't have a photo
+  const vibeFallbacks = {
+    nature: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800',
+    adventure: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800',
+    culture: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&q=80&w=800',
+    food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=800',
+  };
+  return vibeFallbacks[String(fallbackVibe).toLowerCase()] || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800';
+};
+
 // POST /api/ai/spots - Dynamically generate 6 authentic spots for any destination using Groq
 router.post('/spots', async (req, res, next) => {
   try {
@@ -252,22 +315,34 @@ Return ONLY valid JSON with this exact object structure:
     const parsed = JSON.parse(cleaned);
     const spotsList = Array.isArray(parsed) ? parsed : (parsed.spots || []);
 
-    const formatted = spotsList.map((s, idx) => ({
-      id: s.id || (idx + 100),
-      name: s.name,
-      location: s.location || destination,
-      vibe: s.vibe || 'Nature',
-      budget: Number(s.budget) || 2000,
-      crowdLevel: s.crowdLevel || 'Low',
-      tags: Array.isArray(s.tags) ? s.tags : [],
-      rating: Number(s.rating) || 4.7,
-      popularity: Number(s.popularity) || 80,
-      description: s.description,
-      image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&q=80&w=800',
-      imageKeyword: (s.name || '').toLowerCase().replace(/\s+/g, '_'),
-      wikiTitle: s.wikiTitle,
-      searchTerms: s.searchTerms,
-    }));
+    // Resolve real Wikipedia photos in parallel for each spot
+    const formatted = await Promise.all(
+      spotsList.map(async (s, idx) => {
+        const spotVibe = s.vibe || 'Nature';
+        const realImage = await fetchWikipediaImage(
+          s.wikiTitle || s.name,
+          s.searchTerms || [s.name, `${s.name} ${destination}`],
+          spotVibe
+        );
+
+        return {
+          id: s.id || (idx + 100),
+          name: s.name,
+          location: s.location || destination,
+          vibe: spotVibe,
+          budget: Number(s.budget) || 2000,
+          crowdLevel: s.crowdLevel || 'Low',
+          tags: Array.isArray(s.tags) ? s.tags : [],
+          rating: Number(s.rating) || 4.7,
+          popularity: Number(s.popularity) || 80,
+          description: s.description,
+          image: realImage,
+          imageKeyword: (s.name || '').toLowerCase().replace(/\s+/g, '_'),
+          wikiTitle: s.wikiTitle,
+          searchTerms: s.searchTerms,
+        };
+      })
+    );
 
     res.status(200).json({ total: formatted.length, spots: formatted });
   } catch (err) {
