@@ -292,36 +292,7 @@ Make an educated guess for the current season.`,
 const resolveSpotImages = async (spotsList, destination) => {
   const USER_AGENT = 'TripSketchApp/1.0 (https://tripsketch.com; contact: student@tripsketch.com)';
 
-  // 1. Use Google Gemini to predict exact Wikipedia page titles and Wikimedia image search queries
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey && geminiKey.trim()) {
-    try {
-      const namesList = spotsList.map((s) => s.name);
-      const geminiPrompt = `You are a travel database expert. For the destination "${destination}" and spots: ${JSON.stringify(namesList)}, provide the exact, authentic Wikipedia page titles (where the page exists with photos) and exact Wikimedia Commons file search queries.
-Return ONLY JSON in this format:
-{
-  "matches": [
-    { "name": "Spot Name", "wikiTitle": "Exact Wikipedia Article Title", "searchQuery": "Wikimedia Commons Search Query" }
-  ]
-}`;
-      const geminiResult = await callGeminiAPI(geminiPrompt, true);
-      if (geminiResult) {
-        const parsed = JSON.parse(cleanJsonResponse(geminiResult));
-        const matches = parsed.matches || [];
-        matches.forEach((m) => {
-          const spot = spotsList.find((s) => s.name && s.name.toLowerCase() === (m.name || '').toLowerCase());
-          if (spot) {
-            if (m.wikiTitle) spot.wikiTitle = m.wikiTitle;
-            if (m.searchQuery) spot.searchTerms = [m.searchQuery];
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('Gemini spot title enhancement warning:', e.message);
-    }
-  }
-
-  // 2. Collect all spot titles and wikiTitles for batch Wikipedia query
+  // 1. Collect all spot titles and wikiTitles for batch Wikipedia query
   const titleMap = new Map();
   spotsList.forEach((s) => {
     if (s.wikiTitle) titleMap.set(s.wikiTitle.toLowerCase(), s.wikiTitle);
@@ -350,7 +321,7 @@ Return ONLY JSON in this format:
     }
   }
 
-  // 3. For any spots that still lack an image, query Wikimedia Commons or Wikipedia search
+  // 2. For any spots that still lack an image, query Wikimedia Commons or Wikipedia search
   const missingSpots = spotsList.filter((s) => {
     const wikiKey = (s.wikiTitle || '').toLowerCase();
     const nameKey = (s.name || '').toLowerCase();
@@ -362,7 +333,7 @@ Return ONLY JSON in this format:
       missingSpots.map(async (spot) => {
         const searchQuery = `${spot.name} ${destination}`;
         try {
-          // 1. Try Wikimedia Commons image search with spot name and destination
+          // A. Try Wikimedia Commons search with spot name and destination
           const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=1&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json`;
           const cRes = await fetch(commonsUrl, { headers: { 'User-Agent': USER_AGENT } });
           if (cRes.ok) {
@@ -375,7 +346,7 @@ Return ONLY JSON in this format:
             }
           }
 
-          // 2. Fallback to Wikipedia search generator
+          // B. Fallback to Wikipedia search generator
           const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=1&prop=pageimages&pithumbsize=800&format=json`;
           const wRes = await fetch(wikiSearchUrl, { headers: { 'User-Agent': USER_AGENT } });
           if (wRes.ok) {
@@ -394,7 +365,41 @@ Return ONLY JSON in this format:
     );
   }
 
-  // 4. Format spots and match thumbnail images (uniquely keyed so no duplicates exist)
+  // 3. If any spots are still missing images, fetch authentic destination photos from Wikimedia Commons
+  const stillMissing = spotsList.filter((s) => {
+    const wikiKey = (s.wikiTitle || '').toLowerCase();
+    const nameKey = (s.name || '').toLowerCase();
+    return !imagesMap[wikiKey] && !imagesMap[nameKey];
+  });
+
+  if (stillMissing.length > 0) {
+    try {
+      const destUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(destination)}&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json`;
+      const destRes = await fetch(destUrl, { headers: { 'User-Agent': USER_AGENT } });
+      if (destRes.ok) {
+        const destData = await destRes.json();
+        const destPages = Object.values(destData.query?.pages || {});
+        let destIdx = 0;
+        for (const spot of stillMissing) {
+          while (destIdx < destPages.length) {
+            const page = destPages[destIdx++];
+            const thumb = page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url;
+            if (thumb && !Object.values(imagesMap).includes(thumb)) {
+              imagesMap[spot.name.toLowerCase()] = thumb;
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Destination Wikimedia backup failed:', e.message);
+    }
+  }
+
+  // 4. Format spots and guarantee 100% distinct, authentic photographs
+  const usedImages = new Set();
+  const availableBackupImages = Object.values(imagesMap);
+
   return spotsList.map((s, idx) => {
     const spotVibe = s.vibe || 'Nature';
     const wikiKey = (s.wikiTitle || '').toLowerCase();
@@ -402,20 +407,26 @@ Return ONLY JSON in this format:
 
     let image = imagesMap[wikiKey] || imagesMap[nameKey] || null;
 
-    if (!image) {
+    if (!image || usedImages.has(image)) {
       // Fuzzy match in imagesMap
       for (const [titleKey, url] of Object.entries(imagesMap)) {
-        if (titleKey.includes(nameKey) || nameKey.includes(titleKey)) {
+        if (!usedImages.has(url) && (titleKey.includes(nameKey) || nameKey.includes(titleKey))) {
           image = url;
           break;
         }
       }
     }
 
-    // Dynamic scenic fallback tailored with spot query params so each card is distinct
-    if (!image) {
-      const cleanKeyword = encodeURIComponent(`${s.name} ${destination}`);
-      image = `https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800&sig=${idx + 1}&keyword=${cleanKeyword}`;
+    // If still duplicate or missing, select an unused photo from our destination gallery
+    if (!image || usedImages.has(image)) {
+      const unusedBackup = availableBackupImages.find((img) => !usedImages.has(img));
+      if (unusedBackup) {
+        image = unusedBackup;
+      }
+    }
+
+    if (image) {
+      usedImages.add(image);
     }
 
     return {
@@ -437,7 +448,7 @@ Return ONLY JSON in this format:
   });
 };
 
-// POST /api/ai/spots - Dynamically generate 6 authentic spots for any destination using Groq
+// POST /api/ai/spots - Dynamically generate 6 authentic spots for any destination
 router.post('/spots', async (req, res, next) => {
   try {
     const { destination, vibe, crowd } = req.body;
@@ -449,14 +460,15 @@ router.post('/spots', async (req, res, next) => {
     const messages = [
       {
         role: 'system',
-        content: `You are an expert local travel planner. Generate 6 REAL, authentic travel spots in or near the destination.
+        content: `You are an expert local travel planner. Generate 6 REAL, authentic, famous travel spots physically located in or directly adjacent to "${destination.trim()}".
+Do NOT invent places and do not include places far away.
 Return ONLY valid JSON with this exact object structure:
 {
   "spots": [
     {
       "id": 1,
       "name": "Spot Name",
-      "location": "Area, Region",
+      "location": "Locality or Area, Region",
       "description": "Short 1-sentence vibe",
       "vibe": "Nature|Culture|Food|Adventure",
       "budget": 2000,
@@ -464,7 +476,7 @@ Return ONLY valid JSON with this exact object structure:
       "rating": 4.8,
       "popularity": 85,
       "tags": ["tag1", "tag2"],
-      "wikiTitle": "Exact Wikipedia page title with a photo of this spot",
+      "wikiTitle": "Exact Wikipedia article title (e.g. Namgyal Monastery)",
       "searchTerms": ["Spot Name City"]
     }
   ]
@@ -472,16 +484,29 @@ Return ONLY valid JSON with this exact object structure:
       },
       {
         role: 'user',
-        content: `Destination: ${destination.trim()}. Vibe: ${vibe || 'All'}. Crowd tolerance: ${crowd || 'Any'}.`,
+        content: `Destination: ${destination.trim()}. Vibe preference: ${vibe || 'All'}. Crowd preference: ${crowd || 'Any'}.`,
       },
     ];
 
-    const content = await callGroqAPI(messages, true);
+    let content = null;
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey && geminiKey.trim()) {
+      try {
+        content = await callGeminiAPI(messages, true);
+      } catch (e) {
+        console.warn('Gemini spot generation failed, falling back to Groq:', e.message);
+      }
+    }
+
+    if (!content) {
+      content = await callGroqAPI(messages, true);
+    }
+
     const cleaned = cleanJsonResponse(content);
     const parsed = JSON.parse(cleaned);
     const spotsList = Array.isArray(parsed) ? parsed : (parsed.spots || []);
 
-    // Resolve verified authentic Wikipedia images in a single batch request
+    // Resolve verified authentic Wikipedia and Wikimedia images
     const formatted = await resolveSpotImages(spotsList, destination.trim());
 
     res.status(200).json({ total: formatted.length, spots: formatted });
