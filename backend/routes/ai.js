@@ -13,8 +13,10 @@ const callGroqAPI = async (messages, isJson = false) => {
     throw error;
   }
 
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+
   const body = {
-    model: 'llama-3.1-8b-instant',
+    model,
     messages,
     max_tokens: 3000,
   };
