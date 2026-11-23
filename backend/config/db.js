@@ -1,8 +1,9 @@
 // config/db.js
 // Manages the connection pool to PostgreSQL using the pg library.
 
+const path = require('path');
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Create a new connection pool using the DATABASE_URL environment variable
 const pool = new Pool({

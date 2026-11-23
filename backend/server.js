@@ -1,9 +1,10 @@
 // server.js
 // Main entry point for the TripSketch Express API server.
 
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const errorHandler = require('./middleware/errorHandler');
 
@@ -19,6 +20,7 @@ try { aiRoutes = require('./routes/ai'); } catch (e) {}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 // Middleware: Enable CORS for the Vite React frontend (http://localhost:5173) and curl/Postman
 app.use(cors({
@@ -47,8 +49,8 @@ app.use(errorHandler);
 
 // Start server
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`TripSketch backend server running on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`TripSketch backend server running on http://${HOST}:${PORT}`);
   });
 }
 
