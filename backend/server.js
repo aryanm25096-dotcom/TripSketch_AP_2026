@@ -8,10 +8,9 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const errorHandler = require('./middleware/errorHandler');
 
-// Import routes
-const authRoutes = require('./routes/auth');
-// The other routes will be imported as they are created
-let spotsRoutes, favouritesRoutes, itinerariesRoutes, recentRoutes, aiRoutes;
+// Import routes gracefully so individual team branches load without breaking
+let authRoutes, spotsRoutes, favouritesRoutes, itinerariesRoutes, recentRoutes, aiRoutes;
+try { authRoutes = require('./routes/auth'); } catch (e) {}
 try { spotsRoutes = require('./routes/spots'); } catch (e) {}
 try { favouritesRoutes = require('./routes/favourites'); } catch (e) {}
 try { itinerariesRoutes = require('./routes/itineraries'); } catch (e) {}
@@ -37,7 +36,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Mount modular API routes
-app.use('/api/auth', authRoutes);
+if (authRoutes) app.use('/api/auth', authRoutes);
 if (spotsRoutes) app.use('/api/spots', spotsRoutes);
 if (favouritesRoutes) app.use('/api/favourites', favouritesRoutes);
 if (itinerariesRoutes) app.use('/api/itineraries', itinerariesRoutes);
