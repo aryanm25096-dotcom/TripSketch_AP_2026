@@ -1,68 +1,124 @@
 // routes/ai.js
-// Proxies AI requests to the Groq API from the server side to protect secrets.
+// Proxies AI requests to Groq and Google Gemini from the server side to protect secrets.
 
 const express = require('express');
 const router = express.Router();
 
-// Helper function to call the Groq LLM API
+// Helper function to call Google Gemini API (gemini-3.5-flash-lite)
+const callGeminiAPI = async (promptOrMessages, isJson = false) => {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey || !geminiKey.trim()) return null;
+
+  try {
+    let promptText = '';
+    if (typeof promptOrMessages === 'string') {
+      promptText = promptOrMessages;
+    } else if (Array.isArray(promptOrMessages)) {
+      promptText = promptOrMessages.map((m) => `${m.role}: ${m.content}`).join('\n\n');
+    }
+
+    const body = {
+      contents: [{ parts: [{ text: promptText }] }],
+    };
+
+    if (isJson) {
+      body.generationConfig = { responseMimeType: 'application/json' };
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiKey.trim()}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`Gemini API error status: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch (err) {
+    console.warn('Gemini API call failed:', err.message);
+    return null;
+  }
+};
+
+// Helper function to call LLM APIs (Groq with automatic Gemini fallback)
 const callGroqAPI = async (messages, isJson = false) => {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    const error = new Error('GROQ_API_KEY is not configured on the server. Please add your Groq API key to backend/.env.');
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  if ((!apiKey || !apiKey.trim()) && (!geminiKey || !geminiKey.trim())) {
+    const error = new Error('Neither GROQ_API_KEY nor GEMINI_API_KEY is configured. Please add an API key to backend/.env.');
     error.status = 503;
     throw error;
   }
 
-  // qwen/qwen3.8-27b provides ultra-fast inference with no hidden reasoning token overhead
+  // Primary Groq models with ultra-fast inference
   const primaryModel = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
   const modelsToTry = [primaryModel, 'allam-2-7b', 'openai/gpt-oss-120b'];
 
   let lastError = null;
 
-  for (const model of modelsToTry) {
-    try {
-      const body = {
-        model,
-        messages,
-        max_tokens: 2000,
-      };
+  if (apiKey && apiKey.trim()) {
+    for (const model of modelsToTry) {
+      try {
+        const body = {
+          model,
+          messages,
+          max_tokens: 2000,
+        };
 
-      if (isJson) {
-        body.response_format = { type: 'json_object' };
+        if (isJson) {
+          body.response_format = { type: 'json_object' };
+        }
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey.trim()}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (response.status === 429) {
+          const errData = await response.json().catch(() => null);
+          console.warn(`Groq model ${model} rate-limited (429): ${errData?.error?.message}. Trying next fallback...`);
+          lastError = new Error(errData?.error?.message || 'Rate limit reached on AI model');
+          lastError.status = 429;
+          continue;
+        }
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => null);
+          const error = new Error(errData?.error?.message || `Groq API responded with status ${response.status}`);
+          error.status = response.status >= 500 ? 502 : response.status;
+          throw error;
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+      } catch (err) {
+        if (err.status === 429 && modelsToTry.indexOf(model) < modelsToTry.length - 1) {
+          continue;
+        }
+        lastError = err;
+        break;
       }
+    }
+  }
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey.trim()}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (response.status === 429) {
-        const errData = await response.json().catch(() => null);
-        console.warn(`Groq model ${model} rate-limited (429): ${errData?.error?.message}. Trying next fallback model...`);
-        lastError = new Error(errData?.error?.message || 'Rate limit reached on AI model');
-        lastError.status = 429;
-        continue;
-      }
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        const error = new Error(errData?.error?.message || `Groq API responded with status ${response.status}`);
-        error.status = response.status >= 500 ? 502 : response.status;
-        throw error;
-      }
-
-      const data = await response.json();
-      return data.choices[0].message.content;
-    } catch (err) {
-      if (err.status === 429 && modelsToTry.indexOf(model) < modelsToTry.length - 1) {
-        continue;
-      }
-      lastError = err;
-      break;
+  // If Groq fails or is rate-limited, fallback directly to Google Gemini
+  if (geminiKey && geminiKey.trim()) {
+    console.log('Falling back to Google Gemini...');
+    const geminiContent = await callGeminiAPI(messages, isJson);
+    if (geminiContent) {
+      return geminiContent;
     }
   }
 
@@ -232,11 +288,40 @@ Make an educated guess for the current season.`,
   }
 });
 
-// Helper function to resolve authentic Wikipedia/Wikimedia photos for all spots in one batch request
+// Helper function to resolve authentic Wikipedia/Wikimedia photos for all spots
 const resolveSpotImages = async (spotsList, destination) => {
   const USER_AGENT = 'TripSketchApp/1.0 (https://tripsketch.com; contact: student@tripsketch.com)';
 
-  // 1. Collect all spot titles and wikiTitles for a single batch Wikipedia query
+  // 1. Use Google Gemini to predict exact Wikipedia page titles and Wikimedia image search queries
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey && geminiKey.trim()) {
+    try {
+      const namesList = spotsList.map((s) => s.name);
+      const geminiPrompt = `You are a travel database expert. For the destination "${destination}" and spots: ${JSON.stringify(namesList)}, provide the exact, authentic Wikipedia page titles (where the page exists with photos) and exact Wikimedia Commons file search queries.
+Return ONLY JSON in this format:
+{
+  "matches": [
+    { "name": "Spot Name", "wikiTitle": "Exact Wikipedia Article Title", "searchQuery": "Wikimedia Commons Search Query" }
+  ]
+}`;
+      const geminiResult = await callGeminiAPI(geminiPrompt, true);
+      if (geminiResult) {
+        const parsed = JSON.parse(cleanJsonResponse(geminiResult));
+        const matches = parsed.matches || [];
+        matches.forEach((m) => {
+          const spot = spotsList.find((s) => s.name && s.name.toLowerCase() === (m.name || '').toLowerCase());
+          if (spot) {
+            if (m.wikiTitle) spot.wikiTitle = m.wikiTitle;
+            if (m.searchQuery) spot.searchTerms = [m.searchQuery];
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Gemini spot title enhancement warning:', e.message);
+    }
+  }
+
+  // 2. Collect all spot titles and wikiTitles for batch Wikipedia query
   const titleMap = new Map();
   spotsList.forEach((s) => {
     if (s.wikiTitle) titleMap.set(s.wikiTitle.toLowerCase(), s.wikiTitle);
@@ -265,7 +350,51 @@ const resolveSpotImages = async (spotsList, destination) => {
     }
   }
 
-  // 2. Format spots and match thumbnail images
+  // 3. For any spots that still lack an image, query Wikimedia Commons or Wikipedia search
+  const missingSpots = spotsList.filter((s) => {
+    const wikiKey = (s.wikiTitle || '').toLowerCase();
+    const nameKey = (s.name || '').toLowerCase();
+    return !imagesMap[wikiKey] && !imagesMap[nameKey];
+  });
+
+  if (missingSpots.length > 0) {
+    await Promise.all(
+      missingSpots.map(async (spot) => {
+        const searchQuery = `${spot.name} ${destination}`;
+        try {
+          // 1. Try Wikimedia Commons image search with spot name and destination
+          const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=1&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json`;
+          const cRes = await fetch(commonsUrl, { headers: { 'User-Agent': USER_AGENT } });
+          if (cRes.ok) {
+            const cData = await cRes.json();
+            const cPages = Object.values(cData.query?.pages || {});
+            const thumb = cPages[0]?.imageinfo?.[0]?.thumburl || cPages[0]?.imageinfo?.[0]?.url;
+            if (thumb) {
+              imagesMap[spot.name.toLowerCase()] = thumb;
+              return;
+            }
+          }
+
+          // 2. Fallback to Wikipedia search generator
+          const wikiSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=1&prop=pageimages&pithumbsize=800&format=json`;
+          const wRes = await fetch(wikiSearchUrl, { headers: { 'User-Agent': USER_AGENT } });
+          if (wRes.ok) {
+            const wData = await wRes.json();
+            const wPages = Object.values(wData.query?.pages || {});
+            const thumb = wPages[0]?.thumbnail?.source;
+            if (thumb) {
+              imagesMap[spot.name.toLowerCase()] = thumb;
+              return;
+            }
+          }
+        } catch (err) {
+          // Ignore individual search failures
+        }
+      })
+    );
+  }
+
+  // 4. Format spots and match thumbnail images (uniquely keyed so no duplicates exist)
   return spotsList.map((s, idx) => {
     const spotVibe = s.vibe || 'Nature';
     const wikiKey = (s.wikiTitle || '').toLowerCase();
@@ -283,13 +412,11 @@ const resolveSpotImages = async (spotsList, destination) => {
       }
     }
 
-    // Dynamic high quality scenic travel fallback tailored to spot vibe if Wikipedia has no photo
-    const vibeFallbacks = {
-      nature: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800',
-      adventure: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800',
-      culture: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&q=80&w=800',
-      food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=800',
-    };
+    // Dynamic scenic fallback tailored with spot query params so each card is distinct
+    if (!image) {
+      const cleanKeyword = encodeURIComponent(`${s.name} ${destination}`);
+      image = `https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800&sig=${idx + 1}&keyword=${cleanKeyword}`;
+    }
 
     return {
       id: s.id || (idx + 100),
@@ -302,7 +429,7 @@ const resolveSpotImages = async (spotsList, destination) => {
       rating: Number(s.rating) || 4.7,
       popularity: Number(s.popularity) || 80,
       description: s.description,
-      image: image || vibeFallbacks[spotVibe.toLowerCase()] || vibeFallbacks.nature,
+      image,
       imageKeyword: (s.name || '').toLowerCase().replace(/\s+/g, '_'),
       wikiTitle: s.wikiTitle,
       searchTerms: s.searchTerms,
