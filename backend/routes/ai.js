@@ -208,4 +208,74 @@ Make an educated guess for the current season.`,
   }
 });
 
+// POST /api/ai/spots - Dynamically generate 6 authentic spots for any destination using Groq
+router.post('/spots', async (req, res, next) => {
+  try {
+    const { destination, vibe, crowd } = req.body;
+
+    if (!destination || !destination.trim()) {
+      return res.status(400).json({ error: 'destination is required' });
+    }
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are an expert local travel planner. Generate 6 REAL, authentic travel spots in or near the destination.
+Return ONLY valid JSON with this exact object structure:
+{
+  "spots": [
+    {
+      "id": 1,
+      "name": "Spot Name",
+      "location": "Area, Region",
+      "description": "Short 1-sentence vibe",
+      "vibe": "Nature|Culture|Food|Adventure",
+      "budget": 2000,
+      "crowdLevel": "Low|Medium|High",
+      "rating": 4.8,
+      "popularity": 85,
+      "tags": ["tag1", "tag2"],
+      "wikiTitle": "Exact Wikipedia page name",
+      "searchTerms": ["Spot Name City"]
+    }
+  ]
+}`,
+      },
+      {
+        role: 'user',
+        content: `Destination: ${destination.trim()}. Vibe: ${vibe || 'All'}. Crowd tolerance: ${crowd || 'Any'}.`,
+      },
+    ];
+
+    const content = await callGroqAPI(messages, true);
+    const cleaned = cleanJsonResponse(content);
+    const parsed = JSON.parse(cleaned);
+    const spotsList = Array.isArray(parsed) ? parsed : (parsed.spots || []);
+
+    const formatted = spotsList.map((s, idx) => ({
+      id: s.id || (idx + 100),
+      name: s.name,
+      location: s.location || destination,
+      vibe: s.vibe || 'Nature',
+      budget: Number(s.budget) || 2000,
+      crowdLevel: s.crowdLevel || 'Low',
+      tags: Array.isArray(s.tags) ? s.tags : [],
+      rating: Number(s.rating) || 4.7,
+      popularity: Number(s.popularity) || 80,
+      description: s.description,
+      image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&q=80&w=800',
+      imageKeyword: (s.name || '').toLowerCase().replace(/\s+/g, '_'),
+      wikiTitle: s.wikiTitle,
+      searchTerms: s.searchTerms,
+    }));
+
+    res.status(200).json({ total: formatted.length, spots: formatted });
+  } catch (err) {
+    if (err.status === 503) {
+      return res.status(503).json({ error: err.message });
+    }
+    next(err);
+  }
+});
+
 module.exports = router;
