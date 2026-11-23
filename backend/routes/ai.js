@@ -208,67 +208,82 @@ Make an educated guess for the current season.`,
   }
 });
 
-// Helper function to fetch real Wikipedia photos for a place
-const fetchWikipediaImage = async (wikiTitle, searchTerms = [], fallbackVibe = 'Nature') => {
-  const candidates = [wikiTitle, ...searchTerms].filter(Boolean);
+// Helper function to resolve authentic Wikipedia/Wikimedia photos for all spots in one batch request
+const resolveSpotImages = async (spotsList, destination) => {
+  const USER_AGENT = 'TripSketchApp/1.0 (https://tripsketch.com; contact: student@tripsketch.com)';
 
-  for (const query of candidates) {
+  // 1. Collect all spot titles and wikiTitles for a single batch Wikipedia query
+  const titleMap = new Map();
+  spotsList.forEach((s) => {
+    if (s.wikiTitle) titleMap.set(s.wikiTitle.toLowerCase(), s.wikiTitle);
+    if (s.name) titleMap.set(s.name.toLowerCase(), s.name);
+  });
+
+  const titlesArray = Array.from(titleMap.values());
+  const imagesMap = {};
+
+  if (titlesArray.length > 0) {
     try {
-      // 1. Direct Wikipedia page summary (accurate and fast)
-      const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-      const summaryRes = await fetch(summaryUrl, {
-        headers: { 'User-Agent': 'TripSketch/1.0 (Travel discovery app; student project)' },
-      });
-
-      if (summaryRes.ok) {
-        const data = await summaryRes.json();
-        if (data.thumbnail?.source) {
-          // Request high-resolution image instead of tiny thumbnail
-          return data.thumbnail.source.replace(/\/\d+px-/, '/800px-');
-        }
-        if (data.originalimage?.source) {
-          return data.originalimage.source;
-        }
-      }
-
-      // 2. Wikipedia search API to locate matching article
-      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=2`;
-      const searchRes = await fetch(searchUrl, {
-        headers: { 'User-Agent': 'TripSketch/1.0 (Travel discovery app; student project)' },
-      });
-
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const bestTitle = searchData.query?.search?.[0]?.title;
-        if (bestTitle && bestTitle !== query) {
-          const matchedSummary = await fetch(
-            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestTitle)}`,
-            { headers: { 'User-Agent': 'TripSketch/1.0 (Travel discovery app; student project)' } }
-          );
-          if (matchedSummary.ok) {
-            const mData = await matchedSummary.json();
-            if (mData.thumbnail?.source) {
-              return mData.thumbnail.source.replace(/\/\d+px-/, '/800px-');
-            }
-            if (mData.originalimage?.source) {
-              return mData.originalimage.source;
-            }
+      const titlesParam = titlesArray.map((t) => encodeURIComponent(t)).join('|');
+      const batchUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=800&format=json&titles=${titlesParam}`;
+      const res = await fetch(batchUrl, { headers: { 'User-Agent': USER_AGENT } });
+      if (res.ok) {
+        const data = await res.json();
+        const pages = data.query?.pages || {};
+        for (const page of Object.values(pages)) {
+          if (page.thumbnail?.source && page.title) {
+            imagesMap[page.title.toLowerCase()] = page.thumbnail.source;
           }
         }
       }
     } catch (e) {
-      // Continue to next candidate term
+      console.warn('Batch Wikipedia query warning:', e.message);
     }
   }
 
-  // Beautiful scenic vibe-based fallbacks if Wikipedia doesn't have a photo
-  const vibeFallbacks = {
-    nature: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800',
-    adventure: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800',
-    culture: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&q=80&w=800',
-    food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=800',
-  };
-  return vibeFallbacks[String(fallbackVibe).toLowerCase()] || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800';
+  // 2. Format spots and match thumbnail images
+  return spotsList.map((s, idx) => {
+    const spotVibe = s.vibe || 'Nature';
+    const wikiKey = (s.wikiTitle || '').toLowerCase();
+    const nameKey = (s.name || '').toLowerCase();
+
+    let image = imagesMap[wikiKey] || imagesMap[nameKey] || null;
+
+    if (!image) {
+      // Fuzzy match in imagesMap
+      for (const [titleKey, url] of Object.entries(imagesMap)) {
+        if (titleKey.includes(nameKey) || nameKey.includes(titleKey)) {
+          image = url;
+          break;
+        }
+      }
+    }
+
+    // Dynamic high quality scenic travel fallback tailored to spot vibe if Wikipedia has no photo
+    const vibeFallbacks = {
+      nature: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800',
+      adventure: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&q=80&w=800',
+      culture: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&q=80&w=800',
+      food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=800',
+    };
+
+    return {
+      id: s.id || (idx + 100),
+      name: s.name,
+      location: s.location || destination,
+      vibe: spotVibe,
+      budget: Number(s.budget) || 2000,
+      crowdLevel: s.crowdLevel || 'Low',
+      tags: Array.isArray(s.tags) ? s.tags : [],
+      rating: Number(s.rating) || 4.7,
+      popularity: Number(s.popularity) || 80,
+      description: s.description,
+      image: image || vibeFallbacks[spotVibe.toLowerCase()] || vibeFallbacks.nature,
+      imageKeyword: (s.name || '').toLowerCase().replace(/\s+/g, '_'),
+      wikiTitle: s.wikiTitle,
+      searchTerms: s.searchTerms,
+    };
+  });
 };
 
 // POST /api/ai/spots - Dynamically generate 6 authentic spots for any destination using Groq
@@ -298,7 +313,7 @@ Return ONLY valid JSON with this exact object structure:
       "rating": 4.8,
       "popularity": 85,
       "tags": ["tag1", "tag2"],
-      "wikiTitle": "Exact Wikipedia page name",
+      "wikiTitle": "Exact Wikipedia page title with a photo of this spot",
       "searchTerms": ["Spot Name City"]
     }
   ]
@@ -315,34 +330,8 @@ Return ONLY valid JSON with this exact object structure:
     const parsed = JSON.parse(cleaned);
     const spotsList = Array.isArray(parsed) ? parsed : (parsed.spots || []);
 
-    // Resolve real Wikipedia photos in parallel for each spot
-    const formatted = await Promise.all(
-      spotsList.map(async (s, idx) => {
-        const spotVibe = s.vibe || 'Nature';
-        const realImage = await fetchWikipediaImage(
-          s.wikiTitle || s.name,
-          s.searchTerms || [s.name, `${s.name} ${destination}`],
-          spotVibe
-        );
-
-        return {
-          id: s.id || (idx + 100),
-          name: s.name,
-          location: s.location || destination,
-          vibe: spotVibe,
-          budget: Number(s.budget) || 2000,
-          crowdLevel: s.crowdLevel || 'Low',
-          tags: Array.isArray(s.tags) ? s.tags : [],
-          rating: Number(s.rating) || 4.7,
-          popularity: Number(s.popularity) || 80,
-          description: s.description,
-          image: realImage,
-          imageKeyword: (s.name || '').toLowerCase().replace(/\s+/g, '_'),
-          wikiTitle: s.wikiTitle,
-          searchTerms: s.searchTerms,
-        };
-      })
-    );
+    // Resolve verified authentic Wikipedia images in a single batch request
+    const formatted = await resolveSpotImages(spotsList, destination.trim());
 
     res.status(200).json({ total: formatted.length, spots: formatted });
   } catch (err) {
