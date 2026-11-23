@@ -13,36 +13,60 @@ const callGroqAPI = async (messages, isJson = false) => {
     throw error;
   }
 
-  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+  // qwen/qwen3.8-27b provides ultra-fast inference with no hidden reasoning token overhead
+  const primaryModel = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
+  const modelsToTry = [primaryModel, 'allam-2-7b', 'openai/gpt-oss-120b'];
 
-  const body = {
-    model,
-    messages,
-    max_tokens: 3000,
-  };
+  let lastError = null;
 
-  if (isJson) {
-    body.response_format = { type: 'json_object' };
+  for (const model of modelsToTry) {
+    try {
+      const body = {
+        model,
+        messages,
+        max_tokens: 2000,
+      };
+
+      if (isJson) {
+        body.response_format = { type: 'json_object' };
+      }
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey.trim()}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (response.status === 429) {
+        const errData = await response.json().catch(() => null);
+        console.warn(`Groq model ${model} rate-limited (429): ${errData?.error?.message}. Trying next fallback model...`);
+        lastError = new Error(errData?.error?.message || 'Rate limit reached on AI model');
+        lastError.status = 429;
+        continue;
+      }
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        const error = new Error(errData?.error?.message || `Groq API responded with status ${response.status}`);
+        error.status = response.status >= 500 ? 502 : response.status;
+        throw error;
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (err) {
+      if (err.status === 429 && modelsToTry.indexOf(model) < modelsToTry.length - 1) {
+        continue;
+      }
+      lastError = err;
+      break;
+    }
   }
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey.trim()}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => null);
-    const error = new Error(errData?.error?.message || `Groq API responded with status ${response.status}`);
-    error.status = response.status >= 500 ? 502 : response.status;
-    throw error;
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
+  throw lastError || new Error('All AI models failed');
 };
 
 // Helper function to clean markdown fences from LLM JSON responses
