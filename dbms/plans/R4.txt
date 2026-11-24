@@ -1,0 +1,121 @@
+=== R4 Run 1 ===
+Limit  (cost=5.17..5.18 rows=3 width=122) (actual time=0.033..0.033 rows=3.00 loops=1)
+  Buffers: shared hit=7
+  ->  Sort  (cost=5.17..5.18 rows=3 width=122) (actual time=0.032..0.033 rows=3.00 loops=1)
+        Sort Key: rv.viewed_at DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=7
+        ->  Hash Join  (cost=3.90..5.15 rows=3 width=122) (actual time=0.025..0.026 rows=3.00 loops=1)
+              Hash Cond: (st.state_id = l.state_id)
+              Buffers: shared hit=4
+              ->  Seq Scan on states st  (cost=0.00..1.16 rows=16 width=14) (actual time=0.001..0.001 rows=16.00 loops=1)
+                    Buffers: shared hit=1
+              ->  Hash  (cost=3.86..3.86 rows=3 width=116) (actual time=0.021..0.021 rows=3.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=3
+                    ->  Hash Join  (cost=2.50..3.86 rows=3 width=116) (actual time=0.018..0.020 rows=3.00 loops=1)
+                          Hash Cond: (l.location_id = s.location_id)
+                          Buffers: shared hit=3
+                          ->  Seq Scan on locations l  (cost=0.00..1.24 rows=24 width=17) (actual time=0.002..0.002 rows=24.00 loops=1)
+                                Buffers: shared hit=1
+                          ->  Hash  (cost=2.46..2.46 rows=3 width=107) (actual time=0.014..0.015 rows=3.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=2
+                                ->  Hash Join  (cost=1.15..2.46 rows=3 width=107) (actual time=0.010..0.013 rows=3.00 loops=1)
+                                      Hash Cond: (s.spot_id = rv.spot_id)
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=99) (actual time=0.003..0.003 rows=24.00 loops=1)
+                                            Buffers: shared hit=1
+                                      ->  Hash  (cost=1.11..1.11 rows=3 width=12) (actual time=0.004..0.004 rows=3.00 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on recently_viewed rv  (cost=0.00..1.11 rows=3 width=12) (actual time=0.001..0.002 rows=3.00 loops=1)
+                                                  Filter: (user_id = 1)
+                                                  Rows Removed by Filter: 6
+                                                  Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=481
+Planning Time: 0.749 ms
+Execution Time: 0.057 ms
+
+
+=== R4 Run 2 ===
+Limit  (cost=5.17..5.18 rows=3 width=122) (actual time=0.035..0.036 rows=3.00 loops=1)
+  Buffers: shared hit=7
+  ->  Sort  (cost=5.17..5.18 rows=3 width=122) (actual time=0.034..0.035 rows=3.00 loops=1)
+        Sort Key: rv.viewed_at DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=7
+        ->  Hash Join  (cost=3.90..5.15 rows=3 width=122) (actual time=0.026..0.028 rows=3.00 loops=1)
+              Hash Cond: (st.state_id = l.state_id)
+              Buffers: shared hit=4
+              ->  Seq Scan on states st  (cost=0.00..1.16 rows=16 width=14) (actual time=0.001..0.002 rows=16.00 loops=1)
+                    Buffers: shared hit=1
+              ->  Hash  (cost=3.86..3.86 rows=3 width=116) (actual time=0.022..0.022 rows=3.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=3
+                    ->  Hash Join  (cost=2.50..3.86 rows=3 width=116) (actual time=0.019..0.021 rows=3.00 loops=1)
+                          Hash Cond: (l.location_id = s.location_id)
+                          Buffers: shared hit=3
+                          ->  Seq Scan on locations l  (cost=0.00..1.24 rows=24 width=17) (actual time=0.002..0.002 rows=24.00 loops=1)
+                                Buffers: shared hit=1
+                          ->  Hash  (cost=2.46..2.46 rows=3 width=107) (actual time=0.015..0.015 rows=3.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=2
+                                ->  Hash Join  (cost=1.15..2.46 rows=3 width=107) (actual time=0.011..0.014 rows=3.00 loops=1)
+                                      Hash Cond: (s.spot_id = rv.spot_id)
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=99) (actual time=0.003..0.003 rows=24.00 loops=1)
+                                            Buffers: shared hit=1
+                                      ->  Hash  (cost=1.11..1.11 rows=3 width=12) (actual time=0.005..0.005 rows=3.00 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on recently_viewed rv  (cost=0.00..1.11 rows=3 width=12) (actual time=0.001..0.002 rows=3.00 loops=1)
+                                                  Filter: (user_id = 1)
+                                                  Rows Removed by Filter: 6
+                                                  Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=481
+Planning Time: 0.741 ms
+Execution Time: 0.060 ms
+
+
+=== R4 Run 3 ===
+Limit  (cost=5.17..5.18 rows=3 width=122) (actual time=0.042..0.043 rows=3.00 loops=1)
+  Buffers: shared hit=7
+  ->  Sort  (cost=5.17..5.18 rows=3 width=122) (actual time=0.042..0.042 rows=3.00 loops=1)
+        Sort Key: rv.viewed_at DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=7
+        ->  Hash Join  (cost=3.90..5.15 rows=3 width=122) (actual time=0.032..0.034 rows=3.00 loops=1)
+              Hash Cond: (st.state_id = l.state_id)
+              Buffers: shared hit=4
+              ->  Seq Scan on states st  (cost=0.00..1.16 rows=16 width=14) (actual time=0.002..0.002 rows=16.00 loops=1)
+                    Buffers: shared hit=1
+              ->  Hash  (cost=3.86..3.86 rows=3 width=116) (actual time=0.027..0.027 rows=3.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=3
+                    ->  Hash Join  (cost=2.50..3.86 rows=3 width=116) (actual time=0.023..0.025 rows=3.00 loops=1)
+                          Hash Cond: (l.location_id = s.location_id)
+                          Buffers: shared hit=3
+                          ->  Seq Scan on locations l  (cost=0.00..1.24 rows=24 width=17) (actual time=0.002..0.003 rows=24.00 loops=1)
+                                Buffers: shared hit=1
+                          ->  Hash  (cost=2.46..2.46 rows=3 width=107) (actual time=0.018..0.018 rows=3.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=2
+                                ->  Hash Join  (cost=1.15..2.46 rows=3 width=107) (actual time=0.013..0.016 rows=3.00 loops=1)
+                                      Hash Cond: (s.spot_id = rv.spot_id)
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=99) (actual time=0.003..0.004 rows=24.00 loops=1)
+                                            Buffers: shared hit=1
+                                      ->  Hash  (cost=1.11..1.11 rows=3 width=12) (actual time=0.006..0.006 rows=3.00 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on recently_viewed rv  (cost=0.00..1.11 rows=3 width=12) (actual time=0.002..0.003 rows=3.00 loops=1)
+                                                  Filter: (user_id = 1)
+                                                  Rows Removed by Filter: 6
+                                                  Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=481
+Planning Time: 0.833 ms
+Execution Time: 0.075 ms

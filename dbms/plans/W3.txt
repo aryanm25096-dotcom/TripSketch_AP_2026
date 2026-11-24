@@ -1,0 +1,37 @@
+=== W3 Run 1 ===
+Delete on favourites  (cost=0.00..1.21 rows=0 width=0) (actual time=0.006..0.006 rows=0.00 loops=1)
+  Buffers: shared hit=1
+  ->  Seq Scan on favourites  (cost=0.00..1.21 rows=1 width=6) (actual time=0.005..0.005 rows=0.00 loops=1)
+        Filter: ((user_id = 1) AND (spot_id = 5))
+        Rows Removed by Filter: 14
+        Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=86
+Planning Time: 0.192 ms
+Execution Time: 0.060 ms
+
+
+=== W3 Run 2 ===
+Delete on favourites  (cost=0.00..1.21 rows=0 width=0) (actual time=0.005..0.005 rows=0.00 loops=1)
+  Buffers: shared hit=1
+  ->  Seq Scan on favourites  (cost=0.00..1.21 rows=1 width=6) (actual time=0.005..0.005 rows=0.00 loops=1)
+        Filter: ((user_id = 1) AND (spot_id = 5))
+        Rows Removed by Filter: 14
+        Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=86
+Planning Time: 0.196 ms
+Execution Time: 0.063 ms
+
+
+=== W3 Run 3 ===
+Delete on favourites  (cost=0.00..1.21 rows=0 width=0) (actual time=0.003..0.003 rows=0.00 loops=1)
+  Buffers: shared hit=1
+  ->  Seq Scan on favourites  (cost=0.00..1.21 rows=1 width=6) (actual time=0.003..0.003 rows=0.00 loops=1)
+        Filter: ((user_id = 1) AND (spot_id = 5))
+        Rows Removed by Filter: 14
+        Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=86
+Planning Time: 0.152 ms
+Execution Time: 0.041 ms

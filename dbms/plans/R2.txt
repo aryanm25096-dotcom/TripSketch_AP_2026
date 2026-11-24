@@ -1,0 +1,160 @@
+=== R2 Run 1 ===
+Sort  (cost=14.24..14.25 rows=1 width=86) (actual time=0.112..0.113 rows=8.00 loops=1)
+  Sort Key: s.rating DESC
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=14
+  ->  GroupAggregate  (cost=11.17..14.23 rows=1 width=86) (actual time=0.086..0.101 rows=8.00 loops=1)
+        Group Key: s.spot_id, l.area_name, st.name
+        Filter: ('trekking'::text = ANY ((array_agg(t.name))::text[]))
+        Rows Removed by Filter: 16
+        Buffers: shared hit=11
+        ->  Sort  (cost=11.17..11.35 rows=72 width=64) (actual time=0.080..0.082 rows=72.00 loops=1)
+              Sort Key: s.spot_id, l.area_name, st.name, t.name
+              Sort Method: quicksort  Memory: 31kB
+              Buffers: shared hit=11
+              ->  Hash Join  (cost=6.34..8.95 rows=72 width=64) (actual time=0.035..0.055 rows=72.00 loops=1)
+                    Hash Cond: (stg.tag_id = t.tag_id)
+                    Buffers: shared hit=5
+                    ->  Hash Join  (cost=4.44..6.84 rows=72 width=58) (actual time=0.026..0.042 rows=72.00 loops=1)
+                          Hash Cond: (l.state_id = st.state_id)
+                          Buffers: shared hit=4
+                          ->  Hash Join  (cost=3.08..5.24 rows=72 width=52) (actual time=0.019..0.031 rows=72.00 loops=1)
+                                Hash Cond: (s.location_id = l.location_id)
+                                Buffers: shared hit=3
+                                ->  Hash Join  (cost=1.54..3.48 rows=72 width=43) (actual time=0.012..0.019 rows=72.00 loops=1)
+                                      Hash Cond: (stg.spot_id = s.spot_id)
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on spot_tags stg  (cost=0.00..1.72 rows=72 width=8) (actual time=0.001..0.002 rows=72.00 loops=1)
+                                            Buffers: shared hit=1
+                                      ->  Hash  (cost=1.24..1.24 rows=24 width=39) (actual time=0.008..0.008 rows=24.00 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=39) (actual time=0.003..0.005 rows=24.00 loops=1)
+                                                  Buffers: shared hit=1
+                                ->  Hash  (cost=1.24..1.24 rows=24 width=17) (actual time=0.005..0.005 rows=24.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                      Buffers: shared hit=1
+                                      ->  Seq Scan on locations l  (cost=0.00..1.24 rows=24 width=17) (actual time=0.002..0.003 rows=24.00 loops=1)
+                                            Buffers: shared hit=1
+                          ->  Hash  (cost=1.16..1.16 rows=16 width=14) (actual time=0.004..0.004 rows=16.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on states st  (cost=0.00..1.16 rows=16 width=14) (actual time=0.002..0.002 rows=16.00 loops=1)
+                                      Buffers: shared hit=1
+                    ->  Hash  (cost=1.40..1.40 rows=40 width=14) (actual time=0.007..0.007 rows=40.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on tags t  (cost=0.00..1.40 rows=40 width=14) (actual time=0.002..0.003 rows=40.00 loops=1)
+                                Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=486
+Planning Time: 0.842 ms
+Execution Time: 0.148 ms
+
+
+=== R2 Run 2 ===
+Sort  (cost=14.24..14.25 rows=1 width=86) (actual time=0.111..0.112 rows=8.00 loops=1)
+  Sort Key: s.rating DESC
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=14
+  ->  GroupAggregate  (cost=11.17..14.23 rows=1 width=86) (actual time=0.084..0.101 rows=8.00 loops=1)
+        Group Key: s.spot_id, l.area_name, st.name
+        Filter: ('trekking'::text = ANY ((array_agg(t.name))::text[]))
+        Rows Removed by Filter: 16
+        Buffers: shared hit=11
+        ->  Sort  (cost=11.17..11.35 rows=72 width=64) (actual time=0.080..0.081 rows=72.00 loops=1)
+              Sort Key: s.spot_id, l.area_name, st.name, t.name
+              Sort Method: quicksort  Memory: 31kB
+              Buffers: shared hit=11
+              ->  Hash Join  (cost=6.34..8.95 rows=72 width=64) (actual time=0.034..0.055 rows=72.00 loops=1)
+                    Hash Cond: (stg.tag_id = t.tag_id)
+                    Buffers: shared hit=5
+                    ->  Hash Join  (cost=4.44..6.84 rows=72 width=58) (actual time=0.025..0.042 rows=72.00 loops=1)
+                          Hash Cond: (l.state_id = st.state_id)
+                          Buffers: shared hit=4
+                          ->  Hash Join  (cost=3.08..5.24 rows=72 width=52) (actual time=0.019..0.031 rows=72.00 loops=1)
+                                Hash Cond: (s.location_id = l.location_id)
+                                Buffers: shared hit=3
+                                ->  Hash Join  (cost=1.54..3.48 rows=72 width=43) (actual time=0.012..0.019 rows=72.00 loops=1)
+                                      Hash Cond: (stg.spot_id = s.spot_id)
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on spot_tags stg  (cost=0.00..1.72 rows=72 width=8) (actual time=0.001..0.002 rows=72.00 loops=1)
+                                            Buffers: shared hit=1
+                                      ->  Hash  (cost=1.24..1.24 rows=24 width=39) (actual time=0.007..0.007 rows=24.00 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=39) (actual time=0.002..0.005 rows=24.00 loops=1)
+                                                  Buffers: shared hit=1
+                                ->  Hash  (cost=1.24..1.24 rows=24 width=17) (actual time=0.005..0.005 rows=24.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                      Buffers: shared hit=1
+                                      ->  Seq Scan on locations l  (cost=0.00..1.24 rows=24 width=17) (actual time=0.002..0.002 rows=24.00 loops=1)
+                                            Buffers: shared hit=1
+                          ->  Hash  (cost=1.16..1.16 rows=16 width=14) (actual time=0.004..0.004 rows=16.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on states st  (cost=0.00..1.16 rows=16 width=14) (actual time=0.002..0.002 rows=16.00 loops=1)
+                                      Buffers: shared hit=1
+                    ->  Hash  (cost=1.40..1.40 rows=40 width=14) (actual time=0.006..0.006 rows=40.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on tags t  (cost=0.00..1.40 rows=40 width=14) (actual time=0.002..0.003 rows=40.00 loops=1)
+                                Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=486
+Planning Time: 0.836 ms
+Execution Time: 0.147 ms
+
+
+=== R2 Run 3 ===
+Sort  (cost=14.24..14.25 rows=1 width=86) (actual time=0.119..0.119 rows=8.00 loops=1)
+  Sort Key: s.rating DESC
+  Sort Method: quicksort  Memory: 26kB
+  Buffers: shared hit=14
+  ->  GroupAggregate  (cost=11.17..14.23 rows=1 width=86) (actual time=0.093..0.109 rows=8.00 loops=1)
+        Group Key: s.spot_id, l.area_name, st.name
+        Filter: ('trekking'::text = ANY ((array_agg(t.name))::text[]))
+        Rows Removed by Filter: 16
+        Buffers: shared hit=11
+        ->  Sort  (cost=11.17..11.35 rows=72 width=64) (actual time=0.088..0.089 rows=72.00 loops=1)
+              Sort Key: s.spot_id, l.area_name, st.name, t.name
+              Sort Method: quicksort  Memory: 31kB
+              Buffers: shared hit=11
+              ->  Hash Join  (cost=6.34..8.95 rows=72 width=64) (actual time=0.041..0.062 rows=72.00 loops=1)
+                    Hash Cond: (stg.tag_id = t.tag_id)
+                    Buffers: shared hit=5
+                    ->  Hash Join  (cost=4.44..6.84 rows=72 width=58) (actual time=0.032..0.048 rows=72.00 loops=1)
+                          Hash Cond: (l.state_id = st.state_id)
+                          Buffers: shared hit=4
+                          ->  Hash Join  (cost=3.08..5.24 rows=72 width=52) (actual time=0.025..0.037 rows=72.00 loops=1)
+                                Hash Cond: (s.location_id = l.location_id)
+                                Buffers: shared hit=3
+                                ->  Hash Join  (cost=1.54..3.48 rows=72 width=43) (actual time=0.018..0.025 rows=72.00 loops=1)
+                                      Hash Cond: (stg.spot_id = s.spot_id)
+                                      Buffers: shared hit=2
+                                      ->  Seq Scan on spot_tags stg  (cost=0.00..1.72 rows=72 width=8) (actual time=0.001..0.003 rows=72.00 loops=1)
+                                            Buffers: shared hit=1
+                                      ->  Hash  (cost=1.24..1.24 rows=24 width=39) (actual time=0.008..0.008 rows=24.00 loops=1)
+                                            Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                            Buffers: shared hit=1
+                                            ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=39) (actual time=0.003..0.005 rows=24.00 loops=1)
+                                                  Buffers: shared hit=1
+                                ->  Hash  (cost=1.24..1.24 rows=24 width=17) (actual time=0.005..0.005 rows=24.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                      Buffers: shared hit=1
+                                      ->  Seq Scan on locations l  (cost=0.00..1.24 rows=24 width=17) (actual time=0.002..0.003 rows=24.00 loops=1)
+                                            Buffers: shared hit=1
+                          ->  Hash  (cost=1.16..1.16 rows=16 width=14) (actual time=0.004..0.004 rows=16.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on states st  (cost=0.00..1.16 rows=16 width=14) (actual time=0.002..0.002 rows=16.00 loops=1)
+                                      Buffers: shared hit=1
+                    ->  Hash  (cost=1.40..1.40 rows=40 width=14) (actual time=0.007..0.007 rows=40.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on tags t  (cost=0.00..1.40 rows=40 width=14) (actual time=0.002..0.003 rows=40.00 loops=1)
+                                Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=486
+Planning Time: 0.864 ms
+Execution Time: 0.155 ms

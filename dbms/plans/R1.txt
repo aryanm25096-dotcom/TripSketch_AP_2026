@@ -1,0 +1,133 @@
+=== R1 Run 1 ===
+Sort  (cost=5.25..5.25 rows=1 width=255) (actual time=0.033..0.034 rows=1.00 loops=1)
+  Sort Key: s.rating DESC, s.popularity DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=13
+  ->  Nested Loop  (cost=1.32..5.24 rows=1 width=255) (actual time=0.019..0.024 rows=1.00 loops=1)
+        Buffers: shared hit=7
+        ->  Nested Loop  (cost=1.19..4.53 rows=1 width=249) (actual time=0.016..0.021 rows=1.00 loops=1)
+              Buffers: shared hit=5
+              ->  Nested Loop  (cost=1.05..3.56 rows=1 width=240) (actual time=0.014..0.019 rows=1.00 loops=1)
+                    Join Filter: (s.vibe_id = v.vibe_id)
+                    Rows Removed by Join Filter: 9
+                    Buffers: shared hit=3
+                    ->  Seq Scan on vibes v  (cost=0.00..1.05 rows=1 width=11) (actual time=0.002..0.002 rows=1.00 loops=1)
+                          Filter: ((name)::text = 'nature'::text)
+                          Rows Removed by Filter: 3
+                          Buffers: shared hit=1
+                    ->  Hash Join  (cost=1.05..2.45 rows=5 width=237) (actual time=0.011..0.015 rows=10.00 loops=1)
+                          Hash Cond: (s.crowd_level_id = cl.crowd_level_id)
+                          Buffers: shared hit=2
+                          ->  Seq Scan on spots s  (cost=0.00..1.30 rows=16 width=236) (actual time=0.002..0.005 rows=16.00 loops=1)
+                                Filter: (budget_per_day <= 2500.00)
+                                Rows Removed by Filter: 8
+                                Buffers: shared hit=1
+                          ->  Hash  (cost=1.04..1.04 rows=1 width=9) (actual time=0.006..0.006 rows=1.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on crowd_levels cl  (cost=0.00..1.04 rows=1 width=9) (actual time=0.003..0.003 rows=1.00 loops=1)
+                                      Filter: ((name)::text = 'low'::text)
+                                      Rows Removed by Filter: 2
+                                      Buffers: shared hit=1
+              ->  Index Scan using locations_pkey on locations l  (cost=0.14..0.90 rows=1 width=17) (actual time=0.002..0.002 rows=1.00 loops=1)
+                    Index Cond: (location_id = s.location_id)
+                    Index Searches: 1
+                    Buffers: shared hit=2
+        ->  Index Scan using states_pkey on states st  (cost=0.14..0.65 rows=1 width=14) (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: (state_id = l.state_id)
+              Index Searches: 1
+              Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=467
+Planning Time: 0.848 ms
+Execution Time: 0.087 ms
+
+
+=== R1 Run 2 ===
+Sort  (cost=5.25..5.25 rows=1 width=255) (actual time=0.039..0.040 rows=1.00 loops=1)
+  Sort Key: s.rating DESC, s.popularity DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=13
+  ->  Nested Loop  (cost=1.32..5.24 rows=1 width=255) (actual time=0.025..0.030 rows=1.00 loops=1)
+        Buffers: shared hit=7
+        ->  Nested Loop  (cost=1.19..4.53 rows=1 width=249) (actual time=0.023..0.027 rows=1.00 loops=1)
+              Buffers: shared hit=5
+              ->  Nested Loop  (cost=1.05..3.56 rows=1 width=240) (actual time=0.020..0.025 rows=1.00 loops=1)
+                    Join Filter: (s.vibe_id = v.vibe_id)
+                    Rows Removed by Join Filter: 9
+                    Buffers: shared hit=3
+                    ->  Seq Scan on vibes v  (cost=0.00..1.05 rows=1 width=11) (actual time=0.002..0.002 rows=1.00 loops=1)
+                          Filter: ((name)::text = 'nature'::text)
+                          Rows Removed by Filter: 3
+                          Buffers: shared hit=1
+                    ->  Hash Join  (cost=1.05..2.45 rows=5 width=237) (actual time=0.017..0.021 rows=10.00 loops=1)
+                          Hash Cond: (s.crowd_level_id = cl.crowd_level_id)
+                          Buffers: shared hit=2
+                          ->  Seq Scan on spots s  (cost=0.00..1.30 rows=16 width=236) (actual time=0.002..0.004 rows=16.00 loops=1)
+                                Filter: (budget_per_day <= 2500.00)
+                                Rows Removed by Filter: 8
+                                Buffers: shared hit=1
+                          ->  Hash  (cost=1.04..1.04 rows=1 width=9) (actual time=0.005..0.005 rows=1.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on crowd_levels cl  (cost=0.00..1.04 rows=1 width=9) (actual time=0.003..0.003 rows=1.00 loops=1)
+                                      Filter: ((name)::text = 'low'::text)
+                                      Rows Removed by Filter: 2
+                                      Buffers: shared hit=1
+              ->  Index Scan using locations_pkey on locations l  (cost=0.14..0.90 rows=1 width=17) (actual time=0.002..0.002 rows=1.00 loops=1)
+                    Index Cond: (location_id = s.location_id)
+                    Index Searches: 1
+                    Buffers: shared hit=2
+        ->  Index Scan using states_pkey on states st  (cost=0.14..0.65 rows=1 width=14) (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: (state_id = l.state_id)
+              Index Searches: 1
+              Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=477
+Planning Time: 0.838 ms
+Execution Time: 0.069 ms
+
+
+=== R1 Run 3 ===
+Sort  (cost=5.25..5.25 rows=1 width=255) (actual time=0.033..0.034 rows=1.00 loops=1)
+  Sort Key: s.rating DESC, s.popularity DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=13
+  ->  Nested Loop  (cost=1.32..5.24 rows=1 width=255) (actual time=0.019..0.024 rows=1.00 loops=1)
+        Buffers: shared hit=7
+        ->  Nested Loop  (cost=1.19..4.53 rows=1 width=249) (actual time=0.016..0.021 rows=1.00 loops=1)
+              Buffers: shared hit=5
+              ->  Nested Loop  (cost=1.05..3.56 rows=1 width=240) (actual time=0.013..0.018 rows=1.00 loops=1)
+                    Join Filter: (s.vibe_id = v.vibe_id)
+                    Rows Removed by Join Filter: 9
+                    Buffers: shared hit=3
+                    ->  Seq Scan on vibes v  (cost=0.00..1.05 rows=1 width=11) (actual time=0.002..0.003 rows=1.00 loops=1)
+                          Filter: ((name)::text = 'nature'::text)
+                          Rows Removed by Filter: 3
+                          Buffers: shared hit=1
+                    ->  Hash Join  (cost=1.05..2.45 rows=5 width=237) (actual time=0.010..0.015 rows=10.00 loops=1)
+                          Hash Cond: (s.crowd_level_id = cl.crowd_level_id)
+                          Buffers: shared hit=2
+                          ->  Seq Scan on spots s  (cost=0.00..1.30 rows=16 width=236) (actual time=0.002..0.005 rows=16.00 loops=1)
+                                Filter: (budget_per_day <= 2500.00)
+                                Rows Removed by Filter: 8
+                                Buffers: shared hit=1
+                          ->  Hash  (cost=1.04..1.04 rows=1 width=9) (actual time=0.005..0.006 rows=1.00 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                Buffers: shared hit=1
+                                ->  Seq Scan on crowd_levels cl  (cost=0.00..1.04 rows=1 width=9) (actual time=0.003..0.003 rows=1.00 loops=1)
+                                      Filter: ((name)::text = 'low'::text)
+                                      Rows Removed by Filter: 2
+                                      Buffers: shared hit=1
+              ->  Index Scan using locations_pkey on locations l  (cost=0.14..0.90 rows=1 width=17) (actual time=0.002..0.002 rows=1.00 loops=1)
+                    Index Cond: (location_id = s.location_id)
+                    Index Searches: 1
+                    Buffers: shared hit=2
+        ->  Index Scan using states_pkey on states st  (cost=0.14..0.65 rows=1 width=14) (actual time=0.002..0.002 rows=1.00 loops=1)
+              Index Cond: (state_id = l.state_id)
+              Index Searches: 1
+              Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=477
+Planning Time: 0.850 ms
+Execution Time: 0.063 ms

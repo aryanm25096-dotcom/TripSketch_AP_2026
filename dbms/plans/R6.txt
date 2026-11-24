@@ -1,0 +1,97 @@
+=== R6 Run 1 ===
+Sort  (cost=4.31..4.34 rows=12 width=52) (actual time=0.050..0.050 rows=11.00 loops=1)
+  Sort Key: v.name, cl.name
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=6
+  ->  HashAggregate  (cost=3.92..4.10 rows=12 width=52) (actual time=0.037..0.040 rows=11.00 loops=1)
+        Group Key: v.name, cl.name
+        Batches: 1  Memory Usage: 32kB
+        Buffers: shared hit=3
+        ->  Hash Join  (cost=2.16..3.68 rows=24 width=21) (actual time=0.018..0.025 rows=24.00 loops=1)
+              Hash Cond: (s.crowd_level_id = cl.crowd_level_id)
+              Buffers: shared hit=3
+              ->  Hash Join  (cost=1.09..2.46 rows=24 width=20) (actual time=0.010..0.015 rows=24.00 loops=1)
+                    Hash Cond: (s.vibe_id = v.vibe_id)
+                    Buffers: shared hit=2
+                    ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=17) (actual time=0.003..0.004 rows=24.00 loops=1)
+                          Buffers: shared hit=1
+                    ->  Hash  (cost=1.04..1.04 rows=4 width=11) (actual time=0.003..0.003 rows=4.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on vibes v  (cost=0.00..1.04 rows=4 width=11) (actual time=0.001..0.002 rows=4.00 loops=1)
+                                Buffers: shared hit=1
+              ->  Hash  (cost=1.03..1.03 rows=3 width=9) (actual time=0.005..0.005 rows=3.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on crowd_levels cl  (cost=0.00..1.03 rows=3 width=9) (actual time=0.003..0.003 rows=3.00 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=393
+Planning Time: 0.609 ms
+Execution Time: 0.091 ms
+
+
+=== R6 Run 2 ===
+Sort  (cost=4.31..4.34 rows=12 width=52) (actual time=0.044..0.045 rows=11.00 loops=1)
+  Sort Key: v.name, cl.name
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=6
+  ->  HashAggregate  (cost=3.92..4.10 rows=12 width=52) (actual time=0.032..0.035 rows=11.00 loops=1)
+        Group Key: v.name, cl.name
+        Batches: 1  Memory Usage: 32kB
+        Buffers: shared hit=3
+        ->  Hash Join  (cost=2.16..3.68 rows=24 width=21) (actual time=0.016..0.022 rows=24.00 loops=1)
+              Hash Cond: (s.crowd_level_id = cl.crowd_level_id)
+              Buffers: shared hit=3
+              ->  Hash Join  (cost=1.09..2.46 rows=24 width=20) (actual time=0.009..0.013 rows=24.00 loops=1)
+                    Hash Cond: (s.vibe_id = v.vibe_id)
+                    Buffers: shared hit=2
+                    ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=17) (actual time=0.003..0.003 rows=24.00 loops=1)
+                          Buffers: shared hit=1
+                    ->  Hash  (cost=1.04..1.04 rows=4 width=11) (actual time=0.002..0.002 rows=4.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on vibes v  (cost=0.00..1.04 rows=4 width=11) (actual time=0.001..0.001 rows=4.00 loops=1)
+                                Buffers: shared hit=1
+              ->  Hash  (cost=1.03..1.03 rows=3 width=9) (actual time=0.005..0.005 rows=3.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on crowd_levels cl  (cost=0.00..1.03 rows=3 width=9) (actual time=0.003..0.003 rows=3.00 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=393
+Planning Time: 0.654 ms
+Execution Time: 0.115 ms
+
+
+=== R6 Run 3 ===
+Sort  (cost=4.31..4.34 rows=12 width=52) (actual time=0.049..0.049 rows=11.00 loops=1)
+  Sort Key: v.name, cl.name
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=6
+  ->  HashAggregate  (cost=3.92..4.10 rows=12 width=52) (actual time=0.036..0.038 rows=11.00 loops=1)
+        Group Key: v.name, cl.name
+        Batches: 1  Memory Usage: 32kB
+        Buffers: shared hit=3
+        ->  Hash Join  (cost=2.16..3.68 rows=24 width=21) (actual time=0.018..0.024 rows=24.00 loops=1)
+              Hash Cond: (s.crowd_level_id = cl.crowd_level_id)
+              Buffers: shared hit=3
+              ->  Hash Join  (cost=1.09..2.46 rows=24 width=20) (actual time=0.009..0.014 rows=24.00 loops=1)
+                    Hash Cond: (s.vibe_id = v.vibe_id)
+                    Buffers: shared hit=2
+                    ->  Seq Scan on spots s  (cost=0.00..1.24 rows=24 width=17) (actual time=0.003..0.003 rows=24.00 loops=1)
+                          Buffers: shared hit=1
+                    ->  Hash  (cost=1.04..1.04 rows=4 width=11) (actual time=0.002..0.003 rows=4.00 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          Buffers: shared hit=1
+                          ->  Seq Scan on vibes v  (cost=0.00..1.04 rows=4 width=11) (actual time=0.001..0.001 rows=4.00 loops=1)
+                                Buffers: shared hit=1
+              ->  Hash  (cost=1.03..1.03 rows=3 width=9) (actual time=0.006..0.006 rows=3.00 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=1
+                    ->  Seq Scan on crowd_levels cl  (cost=0.00..1.03 rows=3 width=9) (actual time=0.003..0.003 rows=3.00 loops=1)
+                          Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=393
+Planning Time: 0.662 ms
+Execution Time: 0.091 ms
