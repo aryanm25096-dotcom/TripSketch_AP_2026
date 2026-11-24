@@ -179,6 +179,32 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+// PUT /api/itineraries/:id - Update an itinerary title (CRUD Update)
+router.put('/:id', async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const itineraryId = parseInt(req.params.id, 10);
+    const { title } = req.body;
+
+    if (isNaN(itineraryId) || !title || !title.trim()) {
+      return res.status(400).json({ error: 'Valid itinerary ID and title are required' });
+    }
+
+    const result = await db.query(
+      'UPDATE itineraries SET title = $1 WHERE itinerary_id = $2 AND user_id = $3 RETURNING itinerary_id, title',
+      [title.trim(), itineraryId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Itinerary not found or access forbidden' });
+    }
+
+    res.status(200).json({ message: 'Itinerary updated successfully', itinerary: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/itineraries/:id - Delete an entire itinerary
 router.delete('/:id', async (req, res, next) => {
   try {

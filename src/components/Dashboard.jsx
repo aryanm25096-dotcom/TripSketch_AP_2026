@@ -8,7 +8,7 @@ import {
 import { getWeatherAndInfo } from '../lib/weather.js';
 import { generateSpots } from '../lib/spots.js';
 import { generateTripItinerary } from '../lib/itinerary.js';
-import { getFavourites } from '../lib/favourites.js';
+import { getFavourites, ensureAuthToken } from '../lib/favourites.js';
 import ReactMarkdown from 'react-markdown';
 
 export default function Dashboard() {
@@ -26,6 +26,9 @@ export default function Dashboard() {
   const [itinerary, setItinerary] = useState(null);
   const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
   const [showItinerary, setShowItinerary] = useState(false);
+  const [savedItineraryId, setSavedItineraryId] = useState(null);
+  const [itineraryTitle, setItineraryTitle] = useState('');
+  const [itineraryMsg, setItineraryMsg] = useState('');
   const [favourites, setFavourites] = useState([]);
   const [showFavourites, setShowFavourites] = useState(false);
   const [recentlyViewed] = useState(() => {
@@ -122,6 +125,9 @@ export default function Dashboard() {
     const target = destination.trim() || 'Gokarna';
     setIsGeneratingItinerary(true);
     setShowItinerary(true);
+    setSavedItineraryId(null);
+    setItineraryTitle(`${target} 3-Day Plan`);
+    setItineraryMsg('');
     try {
       const result = await generateTripItinerary(`A ${vibe !== 'All' ? vibe : ''} trip to ${target} with ${crowd !== 'Any' ? crowd : 'moderate'} crowd preference.`);
       setItinerary(result);
@@ -131,6 +137,80 @@ export default function Dashboard() {
     } finally {
       setIsGeneratingItinerary(false);
     }
+  };
+
+  const handleSaveItinerary = async () => {
+    try {
+      const token = await ensureAuthToken();
+      const title = itineraryTitle.trim() || `${destination || 'Trip'} Plan`;
+      const res = await fetch('/api/itineraries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ title })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSavedItineraryId(data.id);
+        setItineraryTitle(data.title);
+        setItineraryMsg('Saved! (POST 201 Created)');
+      }
+    } catch (e) {
+      console.error(e);
+      setItineraryMsg('Failed to save');
+    }
+  };
+
+  const handleUpdateItinerary = async () => {
+    if (!savedItineraryId) return;
+    try {
+      const token = await ensureAuthToken();
+      const updatedTitle = `${itineraryTitle.replace(' (Updated)', '')} (Updated)`;
+      const res = await fetch(`/api/itineraries/${savedItineraryId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ title: updatedTitle })
+      });
+      if (res.ok) {
+        setItineraryTitle(updatedTitle);
+        setItineraryMsg('Updated! (PUT 200 OK)');
+      }
+    } catch (e) {
+      console.error(e);
+      setItineraryMsg('Failed to update');
+    }
+  };
+
+  const handleDeleteItinerary = async () => {
+    if (!savedItineraryId) return;
+    try {
+      const token = await ensureAuthToken();
+      const res = await fetch(`/api/itineraries/${savedItineraryId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setSavedItineraryId(null);
+        setItineraryTitle('');
+        setItineraryMsg('Deleted! (DELETE 200 OK)');
+      }
+    } catch (e) {
+      console.error(e);
+      setItineraryMsg('Failed to delete');
+    }
+  };
+
+  const handleOpenFavourites = async () => {
+    setShowFavourites(true);
+    const list = await getFavourites();
+    setFavourites(list);
   };
 
   const handleExplore = async (e) => {
@@ -179,7 +259,7 @@ export default function Dashboard() {
         <div className="dash-icons">
           <button 
             className={`icon-btn ${showFavourites ? 'active' : ''}`} 
-            onClick={() => setShowFavourites(true)}
+            onClick={handleOpenFavourites}
             title="Saved Favourites"
             style={{ position: 'relative' }}
           >
@@ -430,9 +510,32 @@ export default function Dashboard() {
                 <ReactMarkdown>{itinerary}</ReactMarkdown>
               )}
             </div>
-            <div className="itinerary-footer">
-              <button className="btn-print" onClick={() => window.print()}>Download PDF</button>
-              <button className="btn-close-full" onClick={() => setShowItinerary(false)}>Done</button>
+            <div className="itinerary-footer" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {!savedItineraryId ? (
+                  <button className="btn-surprise" style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem' }} onClick={handleSaveItinerary}>
+                    💾 Save Plan (POST)
+                  </button>
+                ) : (
+                  <>
+                    <button className="btn-surprise" style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', background: 'var(--color-ocean, #0077b6)', color: '#fff' }} onClick={handleUpdateItinerary}>
+                      ✏️ Rename Plan (PUT)
+                    </button>
+                    <button className="btn-surprise" style={{ fontSize: '0.85rem', padding: '0.4rem 0.8rem', background: '#ff4757', color: '#fff' }} onClick={handleDeleteItinerary}>
+                      🗑️ Delete Plan (DELETE)
+                    </button>
+                  </>
+                )}
+                {itineraryMsg && (
+                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--color-leaf, #2ecc71)' }}>
+                    {itineraryMsg}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn-print" onClick={() => window.print()}>Download PDF</button>
+                <button className="btn-close-full" onClick={() => setShowItinerary(false)}>Done</button>
+              </div>
             </div>
           </div>
         </div>

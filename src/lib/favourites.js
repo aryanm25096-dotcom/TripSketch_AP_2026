@@ -1,8 +1,31 @@
 // src/lib/favourites.js
 // Manages favourites with hybrid persistence (Backend API + LocalStorage fallback)
 
+export const ensureAuthToken = async () => {
+  let token = localStorage.getItem('token');
+  if (!token) {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'demo@tripsketch.com', password: 'demo1234' })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          token = data.token;
+        }
+      }
+    } catch (e) {
+      console.warn('Auto demo login warning:', e);
+    }
+  }
+  return token;
+};
+
 export const getFavourites = async () => {
-  const token = localStorage.getItem('token');
+  const token = await ensureAuthToken();
   if (token) {
     try {
       const res = await fetch('/api/favourites', {
@@ -46,8 +69,8 @@ export const saveFavourite = async (spot) => {
     console.error('Error saving local favourite:', e);
   }
 
-  // 2. Sync to backend if token present
-  const token = localStorage.getItem('token');
+  // 2. Sync to backend (creates network tab POST /api/favourites entry)
+  const token = await ensureAuthToken();
   if (token) {
     try {
       await fetch(`/api/favourites/${spot.id || ''}`, {
@@ -79,8 +102,8 @@ export const removeFavourite = async (spotId, spotName) => {
     console.error('Error removing local favourite:', e);
   }
 
-  // 2. Sync to backend if token present
-  const token = localStorage.getItem('token');
+  // 2. Sync to backend (creates network tab DELETE /api/favourites/:id entry)
+  const token = await ensureAuthToken();
   if (token && spotId) {
     try {
       await fetch(`/api/favourites/${spotId}`, {
