@@ -8,6 +8,7 @@ import {
 import { getWeatherAndInfo } from '../lib/weather.js';
 import { generateSpots } from '../lib/spots.js';
 import { generateTripItinerary } from '../lib/itinerary.js';
+import { getFavourites } from '../lib/favourites.js';
 import ReactMarkdown from 'react-markdown';
 
 export default function Dashboard() {
@@ -25,6 +26,8 @@ export default function Dashboard() {
   const [itinerary, setItinerary] = useState(null);
   const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
   const [showItinerary, setShowItinerary] = useState(false);
+  const [favourites, setFavourites] = useState([]);
+  const [showFavourites, setShowFavourites] = useState(false);
   const [recentlyViewed] = useState(() => {
     try {
       const raw = localStorage.getItem('recently_viewed');
@@ -70,6 +73,17 @@ export default function Dashboard() {
   // Generate initial AI spots on page load
   useEffect(() => {
     fetchSpots('Gokarna', 'All', 'Any');
+  }, []);
+
+  // Load and synchronize favourites
+  useEffect(() => {
+    const loadFavs = async () => {
+      const list = await getFavourites();
+      setFavourites(list);
+    };
+    loadFavs();
+    window.addEventListener('favourites_updated', loadFavs);
+    return () => window.removeEventListener('favourites_updated', loadFavs);
   }, []);
 
   const toggleTheme = () => {
@@ -163,7 +177,38 @@ export default function Dashboard() {
       <nav className="dash-nav">
         <div className="dash-logo">TripSketch</div>
         <div className="dash-icons">
-          <button className="icon-btn"><Heart size={20} /></button>
+          <button 
+            className={`icon-btn ${showFavourites ? 'active' : ''}`} 
+            onClick={() => setShowFavourites(true)}
+            title="Saved Favourites"
+            style={{ position: 'relative' }}
+          >
+            <Heart 
+              size={20} 
+              fill={favourites.length > 0 ? '#ff4757' : 'none'} 
+              color={favourites.length > 0 ? '#ff4757' : 'currentColor'} 
+            />
+            {favourites.length > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                background: '#ff4757',
+                color: '#fff',
+                fontSize: '0.65rem',
+                fontWeight: '700',
+                borderRadius: '50%',
+                width: '18px',
+                height: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 5px rgba(255, 71, 87, 0.4)'
+              }}>
+                {favourites.length}
+              </span>
+            )}
+          </button>
           <button className="icon-btn"><Menu size={20} /></button>
           <button className="icon-btn theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -388,6 +433,38 @@ export default function Dashboard() {
             <div className="itinerary-footer">
               <button className="btn-print" onClick={() => window.print()}>Download PDF</button>
               <button className="btn-close-full" onClick={() => setShowItinerary(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Favourites Modal */}
+      {showFavourites && (
+        <div className="itinerary-overlay" onClick={() => setShowFavourites(false)}>
+          <div className="itinerary-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '1000px', maxHeight: '85vh' }}>
+            <div className="itinerary-header">
+              <h3>Your <span>Saved Favourites</span> ({favourites.length})</h3>
+              <button className="close-modal" onClick={() => setShowFavourites(false)}>×</button>
+            </div>
+            <div className="itinerary-body" style={{ overflowY: 'auto', padding: '1.5rem' }}>
+              {favourites.length > 0 ? (
+                <div className="sketchbook-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                  {favourites.map(spot => (
+                    <TripCard key={`fav-${spot.id || spot.name}`} spot={spot} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--color-text-muted)' }}>
+                  <Heart size={54} color="#ff4757" style={{ opacity: 0.35, marginBottom: '1rem' }} />
+                  <h4 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: 'var(--color-text-main)' }}>No favourites saved yet!</h4>
+                  <p style={{ maxWidth: '400px', margin: '0 auto', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                    Click the heart icon on any destination card to bookmark your dream spots and access them anytime.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="itinerary-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn-close-full" onClick={() => setShowFavourites(false)}>Done</button>
             </div>
           </div>
         </div>

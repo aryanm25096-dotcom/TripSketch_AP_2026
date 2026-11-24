@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Heart, MapPin, Sparkles, Send } from 'lucide-react';
 import { askAboutPlace } from '../lib/askPlace';
-
+import { saveFavourite, removeFavourite, isSpotSaved } from '../lib/favourites';
 
 const trackRecentlyViewed = (spot) => {
   try {
@@ -16,10 +16,7 @@ const trackRecentlyViewed = (spot) => {
 };
 
 export default function TripCard({ spot }) {
-  const [isSaved, setIsSaved] = useState(() => {
-    const saved = localStorage.getItem(`saved_${spot.id}`);
-    return saved === 'true';
-  });
+  const [isSaved, setIsSaved] = useState(() => isSpotSaved(spot));
   const [askMode, setAskMode] = useState(false);
   const [question, setQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -27,20 +24,33 @@ export default function TripCard({ spot }) {
 
   const [imgSrc, setImgSrc] = useState(spot.image);
 
-  // Sync image source whenever the spot prop changes
+  // Sync image and saved status whenever spot changes
   useEffect(() => {
     setImgSrc(spot.image);
-  }, [spot.image]);
+    setIsSaved(isSpotSaved(spot));
+  }, [spot]);
+
+  // Listen to external favourites changes
+  useEffect(() => {
+    const handleSync = () => setIsSaved(isSpotSaved(spot));
+    window.addEventListener('favourites_updated', handleSync);
+    return () => window.removeEventListener('favourites_updated', handleSync);
+  }, [spot]);
 
   const handleImageError = () => {
     // High-quality scenic fallback if specific image fails to load
     setImgSrc('https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&q=80&w=800');
   };
 
-  const toggleSave = () => {
-    const newState = !isSaved;
-    setIsSaved(newState);
-    localStorage.setItem(`saved_${spot.id}`, newState.toString());
+  const toggleSave = async (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (isSaved) {
+      setIsSaved(false);
+      await removeFavourite(spot.id, spot.name);
+    } else {
+      setIsSaved(true);
+      await saveFavourite(spot);
+    }
   };
 
   const handleAsk = async (e) => {

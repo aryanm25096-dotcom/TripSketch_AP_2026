@@ -72,20 +72,54 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// POST /api/favourites/:spotId - Save a spot to user favourites
-router.post('/:spotId', async (req, res, next) => {
+// POST /api/favourites/:spotId or /api/favourites - Save a spot to user favourites
+router.post(['/', '/:spotId'], async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    const spotId = parseInt(req.params.spotId, 10);
+    const rawSpotId = req.params.spotId || req.body.spotId || req.body.spot?.id;
+    const spotId = parseInt(rawSpotId, 10);
 
-    if (isNaN(spotId)) {
-      return res.status(400).json({ error: 'Invalid spot ID' });
-    }
+    let finalSpotId = spotId;
 
-    // Verify spot exists
-    const spotCheck = await db.query('SELECT spot_id FROM spots WHERE spot_id = $1', [spotId]);
+    // Check if spot exists in database
+    let spotCheck = !isNaN(spotId) 
+      ? await db.query('SELECT spot_id FROM spots WHERE spot_id = $1', [spotId])
+      : { rows: [] };
+
+    // If spot doesn't exist yet (e.g. dynamic AI-generated spot), safely upsert it
     if (spotCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Spot not found' });
+      const s = req.body.spot || req.body;
+      if (s && s.name) {
+        const locResult = await db.query('SELECT location_id FROM locations LIMIT 1');
+        const vibeResult = await db.query('SELECT vibe_id FROM vibes WHERE LOWER(name) = LOWER($1) LIMIT 1', [s.vibe || 'Nature']);
+        const crowdResult = await db.query('SELECT crowd_level_id FROM crowd_levels LIMIT 1');
+
+        const locId = locResult.rows[0]?.location_id || 1;
+        const vibeId = vibeResult.rows[0]?.vibe_id || 1;
+        const crowdId = crowdResult.rows[0]?.crowd_level_id || 1;
+
+        const insertSpot = await db.query(
+          `INSERT INTO spots (name, location_id, vibe_id, crowd_level_id, budget_per_day, rating, popularity, description, image_url, image_keyword)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (name, location_id) DO UPDATE SET image_url = EXCLUDED.image_url
+           RETURNING spot_id`,
+          [
+            s.name,
+            locId,
+            vibeId,
+            crowdId,
+            Number(s.budget) || 2000,
+            Number(s.rating) || 4.7,
+            Number(s.popularity) || 80,
+            s.description || 'Saved travel spot',
+            s.image || null,
+            (s.name || '').toLowerCase().replace(/\s+/g, '_')
+          ]
+        );
+        finalSpotId = insertSpot.rows[0].spot_id;
+      } else {
+        return res.status(404).json({ error: 'Spot not found' });
+      }
     }
 
     // Insert into favourites (idempotent with ON CONFLICT)
@@ -93,20 +127,21 @@ router.post('/:spotId', async (req, res, next) => {
       `INSERT INTO favourites (user_id, spot_id, saved_at)
        VALUES ($1, $2, CURRENT_TIMESTAMP)
        ON CONFLICT (user_id, spot_id) DO NOTHING`,
-      [userId, spotId]
+      [userId, finalSpotId]
     );
 
-    res.status(201).json({ message: 'Spot added to favourites', spotId });
+    res.status(201).json({ message: 'Spot added to favourites', spotId: finalSpotId });
   } catch (err) {
     next(err);
   }
 });
 
-// DELETE /api/favourites/:spotId - Remove a spot from user favourites
-router.delete('/:spotId', async (req, res, next) => {
+// DELETE /api/favourites/:spotId or /api/favourites - Remove a spot from user favourites
+router.delete(['/', '/:spotId'], async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    const spotId = parseInt(req.params.spotId, 10);
+    const rawSpotId = req.params.spotId || req.body.spotId || req.query.spotId;
+    const spotId = parseInt(rawSpotId, 10);
 
     if (isNaN(spotId)) {
       return res.status(400).json({ error: 'Invalid spot ID' });
@@ -116,10 +151,6 @@ router.delete('/:spotId', async (req, res, next) => {
       'DELETE FROM favourites WHERE user_id = $1 AND spot_id = $2',
       [userId, spotId]
     );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Favourite not found or already removed' });
-    }
 
     res.status(200).json({ message: 'Spot removed from favourites', spotId });
   } catch (err) {
